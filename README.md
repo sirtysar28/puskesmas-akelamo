@@ -221,11 +221,6 @@ php artisan db:seed --class=DemoSeeder
 
 Menghasilkan: **40 pasien** (No. RM otomatis `RM-YYMM-NNNN`, tersebar 12 bulan utk grafik tren), **85 transaksi keuangan** (8 bulan, tren naik), **45 survei**, **15 obat** (sebagian stok menipis/kedaluwarsa utk venn), **6 dokter + 12 jadwal**, **12 pegawai**, **12 resep** (4 sudah diserahkan → stok obat konsisten), **18+ notifikasi lonceng**, plus akun demo berikut (HANYA utk lingkungan demo — hapus di produksi):
 
-| Username | Sandi | Peran |
-|---|---|---|
-| `dokterakelamo` | `DokterAkelamo#2026` | dokter |
-| `petugasakelamo` | `PetugasAkelamo#2026` | petugas |
-| `keuanganakelamo` | `KeuanganAkelamo#2026` | keuangan |
 
 ## 📊 Grafik Dashboard
 
