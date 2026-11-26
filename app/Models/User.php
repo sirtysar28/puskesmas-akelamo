@@ -16,7 +16,10 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    public const ROLES = ['admin', 'dokter', 'petugas', 'keuangan'];
+    public const ROLES = ['admin', 'kepala', 'dokter', 'perawat', 'petugas', 'keuangan', 'pasien'];
+
+    /** Peran dengan akses penuh ke SELURUH halaman & fitur (kepala puskesmas & admin). */
+    public const FULL_ACCESS = ['admin', 'kepala'];
 
     protected function casts(): array
     {
@@ -29,5 +32,17 @@ class User extends Authenticatable
     public function hasRole(string ...$roles): bool
     {
         return in_array($this->role, $roles, true);
+    }
+
+    /** Kepala puskesmas & admin — melihat semua halaman dan fitur. */
+    public function isFullAccess(): bool
+    {
+        return in_array($this->role, self::FULL_ACCESS, true);
+    }
+
+    /** Rekam medis yang tertaut ke akun pasien ini (bila ada). */
+    public function patient()
+    {
+        return $this->hasOne(Patient::class);
     }
 }

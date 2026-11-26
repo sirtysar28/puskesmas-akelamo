@@ -27,6 +27,7 @@
      data-columns="{{ json_encode($def['columns']) }}"
      data-fields="{{ json_encode($def['fields']) }}"
      data-doctors="{{ json_encode($doctors) }}"
+     data-patients="{{ json_encode($patients) }}"
      data-rows="{{ json_encode($rows) }}">
     {{-- Tabel dirender oleh app.js agar pencarian instan & ekspor CSV tetap sinkron --}}
     <p class="empty">Memuat data…</p>

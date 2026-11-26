@@ -48,4 +48,15 @@ class Patient extends Model
     {
         return $this->hasMany(Prescription::class)->latest('id');
     }
+
+    /** Akun login pasien (bila terdaftar lewat registrasi online). */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class)->latest('id');
+    }
 }

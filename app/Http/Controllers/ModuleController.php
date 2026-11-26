@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\AppNotification;
+use App\Models\Appointment;
 use App\Models\AuditLog;
 use App\Models\Doctor;
+use App\Models\Finance;
+use App\Models\Patient;
 use App\Support\MailSender;
 use App\Support\ModuleRegistry;
 use Illuminate\Database\Eloquent\Model;
@@ -34,8 +36,11 @@ class ModuleController extends Controller
             'def' => $def,
             'rows' => $rows,
             'canEdit' => in_array($request->user()->role, $def['roles'], true),
-            'doctors' => $module === 'schedules'
+            'doctors' => in_array($module, ['schedules', 'appointments'], true)
                 ? Doctor::orderBy('name')->get(['id', 'name'])
+                : collect(),
+            'patients' => $module === 'appointments'
+                ? Patient::orderBy('full_name')->limit(500)->get(['id', 'medical_record_no', 'full_name'])
                 : collect(),
         ]);
     }
@@ -47,6 +52,8 @@ class ModuleController extends Controller
 
         if ($module === 'schedules') {
             $query->with('doctor:id,name')->orderByDesc('id')->limit(500);
+        } elseif ($module === 'appointments') {
+            $query->with(['patient:id,medical_record_no,full_name', 'doctor:id,name'])->orderByDesc('id')->limit(500);
         } else {
             $query->orderByDesc('id')->limit(500);
         }
@@ -65,7 +72,11 @@ class ModuleController extends Controller
             $data['time_start'] = substr((string) $data['time_start'], 0, 5);
             $data['time_end'] = substr((string) $data['time_end'], 0, 5);
         }
-        foreach (['birth_date', 'expiry_date', 'transaction_date'] as $dateKey) {
+        if ($module === 'appointments') {
+            $data['patient_name'] = ($m->patient?->medical_record_no ?? '–').' · '.($m->patient?->full_name ?? 'Pasien #'.$m->patient_id);
+            $data['doctor_name'] = $m->doctor?->name ?? 'Umum';
+        }
+        foreach (['birth_date', 'expiry_date', 'transaction_date', 'visit_date'] as $dateKey) {
             if (array_key_exists($dateKey, $data) && $data[$dateKey] !== null) {
                 $data[$dateKey] = substr((string) $data[$dateKey], 0, 10);
             }
@@ -81,6 +92,12 @@ class ModuleController extends Controller
         $this->authorizeWrite($request, $def);
 
         $values = $this->validated($request, $def);
+
+        // Modul appointments mencatat pembuat antrian (staf yang menginput).
+        if ($module === 'appointments') {
+            $values['user_id'] = $request->user()->id;
+        }
+
         $model = $def['model']::create($values);
 
         AuditLog::tryCreate(['actor_id' => $request->user()->id, 'action' => 'CREATE', 'entity' => $module, 'record_id' => $model->id]);
@@ -122,14 +139,19 @@ class ModuleController extends Controller
     /** Notifikasi in-app + email untuk peristiwa penting (transaksi keuangan dll). */
     private function notify(string $module, Model $model, int $actorId): void
     {
-        if ($module === 'finances' && $model instanceof \App\Models\Finance) {
+        if ($module === 'finances' && $model instanceof Finance) {
             $nominal = 'Rp '.number_format((float) $model->amount, 0, ',', '.');
             $title = 'Transaksi '.$model->type.' '.$nominal;
             $body = "Kategori \"{$model->category}\" telah dicatat pada {$model->transaction_date->format('d/m/Y')}"
                 .($model->description ? " — {$model->description}" : '').'.';
 
             AppNotification::add('keuangan', $title, $body, '/modul/finances', $actorId);
-            MailSender::notifyRoles(['admin', 'keuangan'], $title, $body, '/modul/finances');
+            MailSender::notifyRoles(['admin', 'kepala', 'keuangan'], $title, $body, '/modul/finances');
+        }
+
+        if ($module === 'appointments' && $model instanceof Appointment) {
+            $title = 'Pendaftaran berobat: '.($model->patient?->full_name ?? 'Pasien').' — '.$model->visit_date->format('d/m/Y');
+            AppNotification::add('pasien', $title, 'Status: '.$model->status.($model->complaint ? ' — keluhan: '.$model->complaint : '').'.', '/modul/appointments', $actorId);
         }
     }
 

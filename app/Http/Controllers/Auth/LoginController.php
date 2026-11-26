@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\User;
 use App\Support\Captcha;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,11 +17,17 @@ class LoginController extends Controller
     /** Halaman login: panel branding di KIRI, form di kanan. */
     public function show(): View|RedirectResponse
     {
-        if (Auth::check()) {
-            return redirect()->intended(route('dashboard'));
+        if ($user = Auth::user()) {
+            return redirect()->intended($this->homeFor($user));
         }
 
         return view('auth.login');
+    }
+
+    /** Tujuan setelah login: pasien → portal pasien, staf → dashboard. */
+    private function homeFor(User $user): string
+    {
+        return $user->role === 'pasien' ? route('pasien.home') : route('dashboard');
     }
 
     /**
@@ -51,7 +58,7 @@ class LoginController extends Controller
 
         // Pencarian case-insensitive & trim — selalu lewat query builder (prepared statement).
         $username = trim($data['username']);
-        $user = \App\Models\User::whereRaw('lower(username) = ?', [mb_strtolower($username)])->first();
+        $user = User::whereRaw('lower(username) = ?', [mb_strtolower($username)])->first();
 
         // Hash pembanding supaya waktu respons tetap sama walau user tidak ditemukan.
         $ok = Hash::check(
@@ -73,7 +80,7 @@ class LoginController extends Controller
 
         AuditLog::tryCreate(['actor_id' => $user->id, 'action' => 'LOGIN', 'entity' => 'auth', 'record_id' => $user->id]);
 
-        return redirect()->intended(route('dashboard'));
+        return redirect()->intended($this->homeFor($user));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -86,6 +93,6 @@ class LoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('home');
     }
 }

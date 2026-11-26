@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Models\Appointment;
 use App\Models\AuditLog;
 use App\Models\Finance;
 use App\Models\Medicine;
 use App\Models\Patient;
 use App\Models\Survey;
 use App\Support\Reports;
+use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Writer;
 
 /**
  * Laporan dengan filter tanggal + export Excel (.xlsx) & PDF.
@@ -51,29 +55,29 @@ class ReportController extends Controller
 
         $temp = tempnam(sys_get_temp_dir(), 'akelamo_xlsx_');
 
-        $writer = new \OpenSpout\Writer\XLSX\Writer();
+        $writer = new Writer;
         $writer->openToFile($temp);
 
         $sheet = $writer->getCurrentSheet();
         $sheet->setName(substr(Reports::types()[$type]['title'], 0, 30));
 
-        $titleStyle = new \OpenSpout\Common\Entity\Style\Style(fontSize: 13, fontBold: true);
-        $headStyle = new \OpenSpout\Common\Entity\Style\Style(backgroundColor: 'E9F7EF', fontBold: true);
+        $titleStyle = new Style(fontSize: 13, fontBold: true);
+        $headStyle = new Style(backgroundColor: 'E9F7EF', fontBold: true);
 
-        $writer->addRow(\OpenSpout\Common\Entity\Row::fromValuesWithStyle(
+        $writer->addRow(Row::fromValuesWithStyle(
             ['SIM Puskesmas Akelamo — '.Reports::types()[$type]['title']], $titleStyle
         ));
-        $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues(
+        $writer->addRow(Row::fromValues(
             ['Periode', $start.' s/d '.$end]
         ));
-        $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues(
+        $writer->addRow(Row::fromValues(
             array_map(fn ($s) => $s['label'].': '.$s['value'], $report['summary'])
         ));
-        $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues([])); // baris kosong
+        $writer->addRow(Row::fromValues([])); // baris kosong
 
-        $writer->addRow(\OpenSpout\Common\Entity\Row::fromValuesWithStyle($report['columns'], $headStyle));
+        $writer->addRow(Row::fromValuesWithStyle($report['columns'], $headStyle));
         foreach ($report['rows'] as $row) {
-            $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues(
+            $writer->addRow(Row::fromValues(
                 array_map(fn ($c) => $row[$c] ?? '', $report['columns'])
             ));
         }
@@ -102,7 +106,7 @@ class ReportController extends Controller
             'user' => $request->user()->full_name,
         ])->render();
 
-        $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false, 'defaultFont' => 'Helvetica']);
+        $dompdf = new Dompdf(['isRemoteEnabled' => false, 'defaultFont' => 'Helvetica']);
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -143,10 +147,39 @@ class ReportController extends Controller
         return match ($type) {
             'keuangan' => $this->financeReport($start, $end, $limit),
             'pasien' => $this->patientReport($start, $end, $limit),
+            'berobat' => $this->appointmentReport($start, $end, $limit),
             'obat' => $this->medicineReport($start, $end, $limit),
             'survei' => $this->surveyReport($start, $end, $limit),
             default => abort(404),
         };
+    }
+
+    /** Laporan kunjungan berobat (pendaftaran online & loket). */
+    private function appointmentReport(string $start, string $end, ?int $limit): array
+    {
+        $q = Appointment::with(['patient:id,medical_record_no,full_name', 'doctor:id,name'])
+            ->whereBetween('visit_date', [$start, $end])->orderBy('visit_date')->orderBy('id');
+        $rows = ($limit ? $q->limit($limit) : $q)->get();
+
+        $byStatus = fn (string $s) => $rows->where('status', $s)->count();
+
+        return [
+            'columns' => ['Tanggal', 'No. RM', 'Pasien', 'Dokter', 'Status', 'Keluhan'],
+            'summary' => [
+                ['label' => 'Total Kunjungan', 'value' => number_format($rows->count(), 0, ',', '.')],
+                ['label' => 'Dikonfirmasi', 'value' => number_format($byStatus('Dikonfirmasi'), 0, ',', '.')],
+                ['label' => 'Menunggu Konfirmasi', 'value' => number_format($byStatus('Menunggu'), 0, ',', '.')],
+                ['label' => 'Dibatalkan', 'value' => number_format($byStatus('Batal'), 0, ',', '.')],
+            ],
+            'rows' => $rows->map(fn ($a) => [
+                'Tanggal' => $a->visit_date->format('d/m/Y'),
+                'No. RM' => $a->patient?->medical_record_no ?? '–',
+                'Pasien' => $a->patient?->full_name ?? '–',
+                'Dokter' => $a->doctor?->name ?? '–',
+                'Status' => $a->status,
+                'Keluhan' => $a->complaint ?: '–',
+            ])->all(),
+        ];
     }
 
     private function financeReport(string $start, string $end, ?int $limit): array

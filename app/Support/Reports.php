@@ -17,22 +17,27 @@ final class Reports
             'keuangan' => [
                 'title' => 'Laporan Keuangan',
                 'desc' => 'Transaksi pemasukan & pengeluaran per rentang tanggal',
-                'roles' => ['admin', 'keuangan'],
+                'roles' => ['admin', 'kepala', 'keuangan'],
             ],
             'pasien' => [
                 'title' => 'Laporan Registrasi Pasien',
                 'desc' => 'Pasien baru terdaftar per rentang tanggal',
-                'roles' => ['admin', 'petugas', 'dokter'],
+                'roles' => ['admin', 'kepala', 'petugas', 'perawat', 'dokter'],
+            ],
+            'berobat' => [
+                'title' => 'Laporan Pendaftaran Berobat',
+                'desc' => 'Kunjungan pasien (online & loket) per rentang tanggal',
+                'roles' => ['admin', 'kepala', 'petugas', 'perawat', 'dokter'],
             ],
             'obat' => [
                 'title' => 'Laporan Stok & Kedaluwarsa Obat',
                 'desc' => 'Obat dengan kedaluwarsa jatuh pada rentang tanggal',
-                'roles' => ['admin', 'petugas'],
+                'roles' => ['admin', 'kepala', 'petugas', 'perawat'],
             ],
             'survei' => [
                 'title' => 'Laporan Survei Kepuasan',
                 'desc' => 'Penilaian masyarakat per rentang tanggal',
-                'roles' => ['admin', 'petugas'],
+                'roles' => ['admin', 'kepala', 'petugas', 'perawat'],
             ],
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Employee;
 use App\Models\Finance;
@@ -38,8 +39,8 @@ final class ModuleRegistry
                 'model' => Patient::class,
                 'title' => 'Data Pasien',
                 'icon' => '♙',
-                'roles' => ['admin', 'dokter', 'petugas'],
-                'readRoles' => ['admin', 'dokter', 'petugas'],
+                'roles' => ['admin', 'kepala', 'dokter', 'perawat', 'petugas'],
+                'readRoles' => ['admin', 'kepala', 'dokter', 'perawat', 'petugas'],
                 'columns' => [
                     ['medical_record_no', 'No. RM'], ['full_name', 'Nama Pasien'], ['nik', 'NIK'],
                     ['birth_date', 'Tanggal Lahir'], ['gender', 'Gender'], ['phone', 'Telepon'],
@@ -68,8 +69,8 @@ final class ModuleRegistry
                 'model' => Medicine::class,
                 'title' => 'Data Obat',
                 'icon' => '✚',
-                'roles' => ['admin', 'petugas'],
-                'readRoles' => ['admin', 'petugas'],
+                'roles' => ['admin', 'kepala', 'petugas'],
+                'readRoles' => ['admin', 'kepala', 'petugas', 'perawat'],
                 'columns' => [
                     ['code', 'Kode'], ['name', 'Nama Obat'], ['unit', 'Satuan'],
                     ['stock', 'Stok'], ['min_stock', 'Minimum'], ['expiry_date', 'Kedaluwarsa'],
@@ -95,8 +96,8 @@ final class ModuleRegistry
                 'model' => Finance::class,
                 'title' => 'Keuangan',
                 'icon' => '▥',
-                'roles' => ['admin', 'keuangan'],
-                'readRoles' => ['admin', 'keuangan'],
+                'roles' => ['admin', 'kepala', 'keuangan'],
+                'readRoles' => ['admin', 'kepala', 'keuangan'],
                 'columns' => [
                     ['transaction_date', 'Tanggal'], ['type', 'Jenis'],
                     ['category', 'Kategori'], ['description', 'Keterangan'], ['amount', 'Nominal'],
@@ -120,8 +121,8 @@ final class ModuleRegistry
                 'model' => Employee::class,
                 'title' => 'Data Pegawai',
                 'icon' => '♧',
-                'roles' => ['admin'],
-                'readRoles' => ['admin'],
+                'roles' => ['admin', 'kepala'],
+                'readRoles' => ['admin', 'kepala'],
                 'columns' => [
                     ['name', 'Nama Pegawai'], ['nip', 'NIP'], ['position', 'Jabatan'], ['unit', 'Unit'],
                 ],
@@ -144,8 +145,8 @@ final class ModuleRegistry
                 'model' => Doctor::class,
                 'title' => 'Data Dokter',
                 'icon' => '♜',
-                'roles' => ['admin', 'petugas'],
-                'readRoles' => ['admin', 'petugas'],
+                'roles' => ['admin', 'kepala', 'petugas'],
+                'readRoles' => ['admin', 'kepala', 'petugas', 'perawat'],
                 'columns' => [
                     ['name', 'Dokter'], ['specialty', 'Spesialisasi/Poli'], ['sip_number', 'SIP'],
                 ],
@@ -166,8 +167,8 @@ final class ModuleRegistry
                 'model' => Schedule::class,
                 'title' => 'Jadwal Praktik',
                 'icon' => '▦',
-                'roles' => ['admin', 'petugas'],
-                'readRoles' => ['admin', 'petugas', 'dokter'], // dokter hanya baca
+                'roles' => ['admin', 'kepala', 'petugas'],
+                'readRoles' => ['admin', 'kepala', 'petugas', 'dokter', 'perawat'], // dokter/perawat hanya baca
                 'columns' => [
                     ['doctor_name', 'Dokter'], ['day', 'Hari'],
                     ['time_start', 'Mulai'], ['time_end', 'Selesai'], ['room', 'Ruang'],
@@ -185,6 +186,31 @@ final class ModuleRegistry
                     'time_start' => ['required', 'date_format:H:i'],
                     'time_end' => ['required', 'date_format:H:i', 'after:time_start'],
                     'room' => ['nullable', 'string', 'max:80'],
+                ],
+            ],
+            'appointments' => [
+                'model' => Appointment::class,
+                'title' => 'Pendaftaran Berobat',
+                'icon' => '◷',
+                'roles' => ['admin', 'kepala', 'petugas', 'perawat'],
+                'readRoles' => ['admin', 'kepala', 'petugas', 'perawat', 'dokter'],
+                'columns' => [
+                    ['patient_name', 'Pasien'], ['doctor_name', 'Dokter'], ['visit_date', 'Tanggal Kunjungan'],
+                    ['complaint', 'Keluhan'], ['status', 'Status'],
+                ],
+                'fields' => [
+                    ['patient_id', 'Pasien', 'patient', true],
+                    ['doctor_id', 'Dokter Tujuan', 'doctor', false],
+                    ['visit_date', 'Tanggal Kunjungan', 'date', true],
+                    ['complaint', 'Keluhan', 'textarea', false],
+                    ['status', 'Status', 'select', true, Appointment::STATUSES],
+                ],
+                'rules' => [
+                    'patient_id' => ['required', 'integer', 'exists:patients,id'],
+                    'doctor_id' => ['nullable', 'integer', 'exists:doctors,id'],
+                    'visit_date' => ['required', 'date', 'after_or_equal:2020-01-01', 'before_or_equal:'.now()->addYear()->toDateString()],
+                    'complaint' => ['nullable', 'string', 'max:500'],
+                    'status' => ['required', 'in:'.implode(',', Appointment::STATUSES)],
                 ],
             ],
         ];
@@ -228,16 +254,16 @@ final class ModuleRegistry
                 $items[$key] = [$m['icon'], $m['title']];
             }
         }
-        if (in_array($role, ['admin', 'dokter', 'petugas'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'dokter', 'perawat', 'petugas'], true)) {
             $items['resep'] = ['℞', 'Resep & Obat'];
         }
-        if (in_array($role, ['admin', 'petugas'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'petugas', 'perawat'], true)) {
             $items['surveys'] = $menu['surveys'];
         }
-        if (\App\Support\Reports::allowedFor($role) !== []) {
+        if (Reports::allowedFor($role) !== []) {
             $items['laporan'] = ['▤', 'Laporan'];
         }
-        if ($role === 'admin') {
+        if (in_array($role, User::FULL_ACCESS, true)) {
             $items['users'] = $menu['users'];
             $items['log'] = ['☰', 'Log Aktivitas'];
             $items['pengaturan'] = ['✉', 'Pengaturan SMTP'];

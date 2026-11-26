@@ -8,8 +8,8 @@
     <meta name="robots" content="noindex,nofollow">
     <title>Layanan Pasien | Puskesmas Akelamo</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/img/logo-puskesmas.png') }}">
-    <link rel="stylesheet" href="{{ asset('assets/app.css') }}">
-    <script src="{{ asset('assets/app.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v={{ filemtime(public_path('assets/app.css')) }}">
+    <script src="{{ asset('assets/app.js') }}?v={{ filemtime(public_path('assets/app.js')) }}" defer></script>
 </head>
 <body class="survey-body">
 <div class="survey-shell survey-shell-wide">
@@ -36,8 +36,13 @@
                 <h2>Registrasi Berhasil!</h2>
                 <p>Terima kasih, <b>{{ $successName }}</b>. Nomor rekam medis Anda:</p>
                 <div class="rm-box">{{ $success }}</div>
-                <p class="muted">Simpan nomor ini &amp; tunjukkan di loket pendaftaran saat berobat. Data Anda terlindungi dan terenkripsi.</p>
-                <a class="btn" href="{{ url('/pasien') }}">Daftarkan Pasien Lain</a>
+                <p>Gunakan data berikut untuk <b>login &amp; daftar berobat online</b>:</p>
+                <div class="rm-box" style="font-size:15px">👤 Username: <b>{{ $successUsername }}</b></div>
+                <p class="muted">Kata sandi = yang Anda buat di atas. Simpan nomor RM ini &amp; tunjukkan di loket saat berobat. Data Anda terlindungi dan terenkripsi.</p>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                    <a class="btn" href="{{ url('/login') }}">→ Login &amp; Daftar Berobat</a>
+                    <a class="btn secondary" href="{{ url('/pasien') }}">Daftarkan Pasien Lain</a>
+                </div>
             </div>
         @else
             <div id="pt-area">
@@ -61,7 +66,7 @@
                 </div>
 
                 <h1 style="margin-top:30px">Registrasi Pasien Baru</h1>
-                <p>Isi data dengan benar. Nomor <b>Rekam Medis (RM)</b> akan dibuat otomatis setelah simpan.</p>
+                <p>Isi data dengan benar. Nomor <b>Rekam Medis (RM)</b> dibuat otomatis — sekaligus menjadi <b>username</b> akun pasien Anda untuk login &amp; mendaftar berobat online.</p>
 
                 <form method="POST" action="{{ url('/pasien/daftar') }}">
                     @csrf
@@ -98,6 +103,16 @@
                             <input type="text" id="address" name="address" value="{{ old('address') }}" maxlength="500" placeholder="Alamat domisili (opsional)">
                         </div>
                     </div>
+                    <div class="rx-grid">
+                        <div class="field">
+                            <label for="password">Kata Sandi Akun * (min. 8 karakter)</label>
+                            <input type="password" id="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password" placeholder="Buat kata sandi akun pasien">
+                        </div>
+                        <div class="field">
+                            <label for="password_confirmation">Ulangi Kata Sandi *</label>
+                            <input type="password" id="password_confirmation" name="password_confirmation" required minlength="8" maxlength="72" autocomplete="new-password" placeholder="Ketik ulang kata sandi">
+                        </div>
+                    </div>
                     <div class="field">
                         <label for="captcha">Kode Keamanan *</label>
                         <div class="captcha-row">
@@ -106,13 +121,14 @@
                             <input type="text" id="captcha" name="captcha" required maxlength="8" autocomplete="off" placeholder="5 karakter">
                         </div>
                     </div>
-                    <button class="btn btn-wide" type="submit">✓ Daftar &amp; Dapatkan Nomor RM</button>
+                    <button class="btn btn-wide" type="submit">✓ Daftar &amp; Buat Akun Pasien</button>
                 </form>
             </div>
         @endif
 
         <div class="survey-foot">
-            <a href="{{ url('/login') }}">Login Staf</a> ·
+            <a href="{{ url('/') }}">← Beranda</a> ·
+            <a href="{{ url('/login') }}">Login Pasien / Staf</a> ·
             <a href="{{ url('/survey') }}">Isi Survei Kepuasan</a>
         </div>
     </div>

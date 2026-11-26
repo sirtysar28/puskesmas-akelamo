@@ -2,19 +2,27 @@
 
 namespace Tests\Feature;
 
+use App\Models\Medicine;
+use App\Models\Patient;
+use App\Models\Prescription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_is_redirected_to_login(): void
+    public function test_landing_page_is_public_for_guests(): void
     {
         $response = $this->get('/');
 
-        $response->assertRedirect('/login');
+        $response->assertOk();
+        $response->assertSee('Puskesmas Akelamo', false);
+        $response->assertSee('Registrasi Pasien', false);
+        // Halaman staf tetap terlindungi login.
+        $this->get('/dashboard')->assertRedirect('/login');
     }
 
     public function test_login_page_renders_with_captcha_and_footer(): void
@@ -96,7 +104,7 @@ class ExampleTest extends TestCase
 
     public function test_patient_rm_generated_by_system(): void
     {
-        $patient = \App\Models\Patient::create([
+        $patient = Patient::create([
             'full_name' => 'Uji RM Otomatis',
             'gender' => 'Laki-laki',
             'birth_date' => '1992-06-01',
@@ -104,7 +112,7 @@ class ExampleTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^RM-\d{4}-\d{4}$/', $patient->medical_record_no);
 
-        $second = \App\Models\Patient::create(['full_name' => 'Kedua', 'gender' => 'Perempuan']);
+        $second = Patient::create(['full_name' => 'Kedua', 'gender' => 'Perempuan']);
         $this->assertSame(
             (int) substr($patient->medical_record_no, -4) + 1,
             (int) substr($second->medical_record_no, -4)
@@ -115,8 +123,8 @@ class ExampleTest extends TestCase
     {
         $dokter = User::factory()->create(['role' => 'dokter']);
         $keuangan = User::factory()->create(['role' => 'keuangan']);
-        $patient = \App\Models\Patient::create(['full_name' => 'Pasien Resep', 'gender' => 'Laki-laki']);
-        $med = \App\Models\Medicine::create([
+        $patient = Patient::create(['full_name' => 'Pasien Resep', 'gender' => 'Laki-laki']);
+        $med = Medicine::create([
             'code' => 'T-01', 'name' => 'Obat Uji', 'unit' => 'Pcs',
             'stock' => 50, 'min_stock' => 5, 'expiry_date' => now()->addYear()->toDateString(),
         ]);
@@ -131,7 +139,7 @@ class ExampleTest extends TestCase
             'items' => [['medicine_id' => $med->id, 'dose' => '2x1', 'quantity' => 7]],
         ])->assertCreated();
 
-        $rx = \App\Models\Prescription::first();
+        $rx = Prescription::first();
         $this->assertSame('aktif', $rx->status);
 
         // Dokter TIDAK boleh menyerahkan resep.
@@ -162,6 +170,6 @@ class ExampleTest extends TestCase
             'password_confirmation' => 'SandiBaru12345',
         ])->assertRedirect('/profil');
 
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('SandiBaru12345', $user->fresh()->password));
+        $this->assertTrue(Hash::check('SandiBaru12345', $user->fresh()->password));
     }
 }

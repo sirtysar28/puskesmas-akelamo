@@ -7,8 +7,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') · SIM Puskesmas Akelamo</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/img/logo-puskesmas.png') }}">
-    <link rel="stylesheet" href="{{ asset('assets/app.css') }}">
-    <script src="{{ asset('assets/app.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v={{ filemtime(public_path('assets/app.css')) }}">
+    <script src="{{ asset('assets/app.js') }}?v={{ filemtime(public_path('assets/app.js')) }}" defer></script>
 </head>
 <body>
 <div class="layout">

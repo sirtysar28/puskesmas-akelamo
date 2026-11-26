@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\AppNotification;
+use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Employee;
 use App\Models\Finance;
@@ -21,7 +22,9 @@ use Illuminate\Database\Seeder;
  *
  * Akun demo (HANYA untuk lingkungan demo — hapus di produksi):
  *   adminakelamo   → dibuat lewat akelamo:init-admin
+ *   kepalaakelamo  / KepalaAkelamo#2026   (role: kepala — akses semua fitur)
  *   dokterakelamo  / DokterAkelamo#2026   (role: dokter)
+ *   perawatakemamo / PerawatAkelamo#2026  (role: perawat)
  *   petugasakelamo / PetugasAkelamo#2026  (role: petugas)
  *   keuanganakelamo/ KeuanganAkelamo#2026 (role: keuangan)
  */
@@ -43,14 +46,17 @@ class DemoSeeder extends Seeder
         $this->seedFinances();
         $this->seedSurveys();
         $this->seedPrescriptions();
+        $this->seedAppointments();
         $this->seedNotifications();
     }
 
     private function seedUsers(): void
     {
         $demo = [
+            ['dr. Johannes Manoppo, M.Kes', 'kepalaakelamo', 'kepala', 'KepalaAkelamo#2026', 'kepala.akelamo@demo.id'],
             ['dr. Ahmad Hidayat, Sp.PD', 'dokterakelamo', 'dokter', 'DokterAkelamo#2026', 'dokter.akelamo@demo.id'],
             ['Nur Aisyah, S.Tr.Kes', 'petugasakelamo', 'petugas', 'PetugasAkelamo#2026', 'petugas.akelamo@demo.id'],
+            ['Yuliana Wagey, A.Md.Kep', 'perawatakemamo', 'perawat', 'PerawatAkelamo#2026', 'perawat.akelamo@demo.id'],
             ['Rudi Hartono, S.E.', 'keuanganakelamo', 'keuangan', 'KeuanganAkelamo#2026', 'keuangan.akelamo@demo.id'],
         ];
         foreach ($demo as [$name, $username, $role, $pass, $email]) {
@@ -281,6 +287,52 @@ class DemoSeeder extends Seeder
             } else {
                 AppNotification::add('resep', 'Resep baru untuk '.$rx->patient->full_name, 'Resep #'.$rx->id.' menunggu penyerahan obat di farmasi.', '/resep', $dokterUser->id);
             }
+        }
+    }
+
+    /** Contoh akun pasien portal + antrian berobat (online & loket). */
+    private function seedAppointments(): void
+    {
+        $petugasUser = User::where('username', 'petugasakelamo')->first() ?? User::first();
+
+        // Satu pasien demo dengan akun portal (username = nomor RM).
+        $pasienDemo = Patient::latest('id')->first();
+        if ($pasienDemo !== null) {
+            $akunPasien = User::create([
+                'full_name' => $pasienDemo->full_name,
+                'username' => mb_strtolower($pasienDemo->medical_record_no),
+                'password' => 'PasienAkelamo#2026',
+                'role' => 'pasien',
+                'is_active' => true,
+            ]);
+            $pasienDemo->user_id = $akunPasien->id;
+            $pasienDemo->save();
+        }
+
+        $keluhan = [
+            'Demam 3 hari disertai pusing.',
+            'Kontrol rutin tekanan darah.',
+            'Batuk berdahak sejak seminggu lalu.',
+            'Gigi berlubang & nyeri saat mengunyah.',
+            'Memeriksa kandungan (ANC).',
+            null,
+        ];
+        $statuses = ['Menunggu', 'Dikonfirmasi', 'Selesai', 'Menunggu', 'Batal', 'Dikonfirmasi'];
+
+        $patients = Patient::inRandomOrder()->limit(14)->get();
+        $doctors = Doctor::pluck('id');
+
+        foreach ($patients as $i => $p) {
+            $tanggal = now()->addDays(random_int(-9, 6));
+            Appointment::create([
+                'patient_id' => $p->id,
+                'doctor_id' => $doctors->random(),
+                'user_id' => ($pasienDemo !== null && $p->id === $pasienDemo->id) ? $pasienDemo->user_id : $petugasUser->id,
+                'visit_date' => $tanggal->toDateString(),
+                'complaint' => $keluhan[$i % count($keluhan)],
+                'status' => $tanggal->isToday() ? 'Menunggu' : $statuses[$i % count($statuses)],
+                'created_at' => $tanggal->copy()->subDays(random_int(0, 3))->setTime(random_int(7, 15), random_int(0, 59)),
+            ]);
         }
     }
 

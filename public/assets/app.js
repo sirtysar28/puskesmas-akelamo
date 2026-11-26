@@ -139,6 +139,7 @@ function cellValue(module, key, v, row) {
     if (key === 'amount') return esc(rupiah(v));
     if (key === 'stock') return `<span class="pill ${Number(v) <= Number(row.min_stock ?? 0) ? 'orange' : ''}">${fmtN(v)}</span>`;
     if (key === 'type') return `<span class="pill ${v === 'Pengeluaran' ? 'orange' : ''}">${esc(v)}</span>`;
+    if (key === 'status') return `<span class="pill ${v === 'Batal' ? 'red' : (v === 'Menunggu' ? 'orange' : '')}">${esc(v)}</span>`;
     if (key === 'time_start' || key === 'time_end') return esc(String(v).slice(0, 5));
     return esc(v);
 }
@@ -153,6 +154,7 @@ function initCrud() {
     const columns = JSON.parse(root.dataset.columns || '[]');
     const fields = JSON.parse(root.dataset.fields || '[]');
     const doctors = JSON.parse(root.dataset.doctors || '[]');
+    const patients = JSON.parse(root.dataset.patients || '[]');
     let rows = JSON.parse(root.dataset.rows || '[]');
     let search = '';
 
@@ -207,7 +209,11 @@ function initCrud() {
             return `<div class="field wide"><label for="f_${key}">${esc(label)}</label>
                 <textarea name="${key}" id="f_${key}">${esc(value)}</textarea></div>`;
         }
-        const opts = type === 'doctor' ? doctors.map((d) => [d.id, d.name]) : (options || []).map((o) => [o, o]);
+        const opts = type === 'doctor'
+            ? doctors.map((d) => [d.id, d.name])
+            : type === 'patient'
+                ? patients.map((p) => [p.id, `${p.medical_record_no} · ${p.full_name}`])
+                : (options || []).map((o) => [o, o]);
         return `<div class="field"><label for="f_${key}">${esc(label)}${required ? ' *' : ''}</label>
             <select name="${key}" id="f_${key}"${req}><option value="">Pilih...</option>
             ${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(value) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
@@ -232,7 +238,7 @@ function initCrud() {
             const values = {};
             for (const [key, , type] of fields) {
                 const v = form.elements[key].value;
-                values[key] = (type === 'number' || type === 'doctor') ? (v === '' ? null : Number(v)) : v;
+                values[key] = (type === 'number' || type === 'doctor' || type === 'patient') ? (v === '' ? null : Number(v)) : v;
             }
             try {
                 await api(`/modul/${module}${isEdit ? `/${row.id}` : ''}`, isEdit ? 'PUT' : 'POST', values);
@@ -335,8 +341,10 @@ function initUsers() {
                 <div class="field"><label for="u_name">Nama Lengkap</label><input id="u_name" name="full_name" required maxlength="150"></div>
                 <div class="field"><label for="u_username">Username</label><input id="u_username" name="username" required minlength="3" maxlength="80" pattern="[A-Za-z0-9_.\\-]+"></div>
                 <div class="field"><label for="u_role">Peran</label><select id="u_role" name="role" required>
-                    <option value="admin">Admin</option><option value="dokter">Dokter</option>
-                    <option value="petugas">Petugas</option><option value="keuangan">Keuangan</option></select></div>
+                    <option value="admin">Admin</option><option value="kepala">Kepala Puskesmas</option>
+                    <option value="dokter">Dokter</option><option value="perawat">Perawat</option>
+                    <option value="petugas">Petugas</option><option value="keuangan">Keuangan</option>
+                    <option value="pasien">Pasien</option></select></div>
                 <div class="field"><label for="u_pass">Password (min. 12 karakter)</label>${pwInput('u_pass')}</div>
             </div><p class="form-error" id="modal-error"></p>
             <div class="modal-actions"><button class="btn" type="submit">Buat Pengguna</button></div></form>`);

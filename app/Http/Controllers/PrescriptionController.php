@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Models\AppNotification;
 use App\Models\AuditLog;
+use App\Models\Doctor;
 use App\Models\Medicine;
 use App\Models\Patient;
 use App\Models\Prescription;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\MailSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,13 +21,14 @@ use Illuminate\View\View;
  */
 class PrescriptionController extends Controller
 {
-    private const DISPENSERS = ['admin', 'petugas'];
-    private const WRITERS = ['admin', 'dokter'];
+    private const DISPENSERS = ['admin', 'kepala', 'petugas', 'perawat'];
+
+    private const WRITERS = ['admin', 'kepala', 'dokter'];
 
     public function index(Request $request): View
     {
         $role = $request->user()->role;
-        abort_unless(in_array($role, ['admin', 'dokter', 'petugas'], true), 403, 'Menu resep untuk admin, dokter, dan petugas.');
+        abort_unless(in_array($role, ['admin', 'kepala', 'dokter', 'perawat', 'petugas'], true), 403, 'Menu resep untuk staf puskesmas.');
 
         $q = Prescription::with(['patient:id,medical_record_no,full_name', 'doctor:id,name,specialty', 'creator:id,full_name', 'items.medicine:id,name,unit'])
             ->orderByDesc('id')->limit(300);
@@ -99,14 +101,14 @@ class PrescriptionController extends Controller
         AuditLog::tryCreate(['actor_id' => $request->user()->id, 'action' => 'CREATE', 'entity' => 'prescriptions', 'record_id' => $rx->id]);
 
         $nama = $rx->patient?->full_name ?? 'pasien';
-        \App\Models\AppNotification::add(
+        AppNotification::add(
             'resep',
             'Resep baru untuk '.$nama,
             'Resep #'.$rx->id.' menunggu penyerahan obat di farmasi.',
             '/resep',
             $request->user()->id
         );
-        \App\Support\MailSender::notifyRoles(['admin', 'petugas'], 'Resep baru untuk '.$nama, 'Resep #'.$rx->id.' menunggu penyerahan obat di farmasi.', '/resep');
+        MailSender::notifyRoles(['admin', 'kepala', 'petugas', 'perawat'], 'Resep baru untuk '.$nama, 'Resep #'.$rx->id.' menunggu penyerahan obat di farmasi.', '/resep');
 
         return response()->json(['ok' => true, 'id' => $rx->id, 'rm' => $rx->patient?->medical_record_no], 201);
     }
@@ -118,7 +120,7 @@ class PrescriptionController extends Controller
 
         $rx = Prescription::with('items.medicine')->where('status', 'aktif')->findOrFail($id);
 
-        DB::transaction(function () use ($rx, $request) {
+        DB::transaction(function () use ($rx) {
             foreach ($rx->items as $item) {
                 $med = $item->medicine;
                 abort_if($med === null, 422, 'Obat sudah tidak tersedia.');
@@ -130,7 +132,7 @@ class PrescriptionController extends Controller
 
         AuditLog::tryCreate(['actor_id' => $request->user()->id, 'action' => 'DISPENSE', 'entity' => 'prescriptions', 'record_id' => $id]);
 
-        \App\Models\AppNotification::add(
+        AppNotification::add(
             'resep',
             'Resep #'.$id.' diserahkan',
             'Obat telah diserahkan ke pasien & stok dikurangi otomatis.',
@@ -144,6 +146,6 @@ class PrescriptionController extends Controller
     /** Cocokkan akun dokter ke data dokter berdasarkan nama (bila ada). */
     private function guessDoctorId(string $fullName): ?int
     {
-        return \App\Models\Doctor::where('name', $fullName)->value('id');
+        return Doctor::where('name', $fullName)->value('id');
     }
 }

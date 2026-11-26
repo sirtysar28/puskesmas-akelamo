@@ -7,8 +7,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Masuk · SIM Puskesmas Akelamo</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/img/logo-puskesmas.png') }}">
-    <link rel="stylesheet" href="{{ asset('assets/app.css') }}">
-    <script src="{{ asset('assets/app.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v={{ filemtime(public_path('assets/app.css')) }}">
+    <script src="{{ asset('assets/app.js') }}?v={{ filemtime(public_path('assets/app.js')) }}" defer></script>
 </head>
 <body class="login-body">
 <div class="login-page">
@@ -34,8 +34,8 @@
         <form class="login-form" method="POST" action="{{ route('login.attempt') }}" id="login-form" autocomplete="on">
             @csrf
             <span class="kicker">SELAMAT DATANG</span>
-            <h2>Masuk ke Dashboard</h2>
-            <p>Gunakan akun yang telah disiapkan administrator Puskesmas Akelamo.</p>
+            <h2>Masuk ke Akun Anda</h2>
+            <p>Untuk <b>pasien</b>: masuk dengan username RM &amp; kata sandi Anda.<br>Untuk <b>staf</b> (dokter, perawat, petugas, kepala puskesmas): gunakan akun dari administrator.</p>
 
             @if ($errors->any())
                 <div class="form-error-box" role="alert">
@@ -48,7 +48,7 @@
             <div class="field">
                 <label for="username">Username</label>
                 <input id="username" name="username" type="text" autocomplete="username" required
-                       placeholder="Masukkan username" maxlength="80" value="{{ old('username') }}">
+                       placeholder="Pasien: username RM · Staf: akun kantor" maxlength="80" value="{{ old('username') }}">
             </div>
 
             <div class="field">
@@ -74,12 +74,13 @@
                 </div>
             </div>
 
-            <button class="btn btn-login" type="submit">Masuk ke Sistem →</button>
+            <button class="btn btn-login" type="submit">Masuk Sekarang →</button>
 
-            <p class="login-foot">🔒 Akses terbatas untuk petugas yang berwenang. Jangan membagikan kata sandi Anda.</p>
+            <p class="login-foot">🔒 Belum terdaftar sebagai pasien? <a href="{{ url('/pasien') }}" style="color:#087944;font-weight:750">Registrasi online di sini</a>.</p>
         </form>
 
         <footer class="login-footer">
+            <a href="{{ url('/') }}" style="color:#087944;font-weight:700">← Kembali ke Beranda</a><br>
             © {{ date('Y') }} Puskesmas Akelamo · Developed by
             <a href="https://ciptakaryadigital.id" target="_blank" rel="noopener noreferrer">Cipta Karya Digital</a>
         </footer>

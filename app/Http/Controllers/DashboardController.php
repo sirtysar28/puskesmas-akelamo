@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Employee;
 use App\Models\Finance;
@@ -10,19 +10,27 @@ use App\Models\Medicine;
 use App\Models\Patient;
 use App\Models\Schedule;
 use App\Models\Survey;
+use App\Models\User;
 use App\Support\ModuleRegistry;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
     /** Dashboard dengan ringkasan + grafik animasi sesuai hak akses peran. */
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         $role = $request->user()->role;
+
+        // Pasien tidak memakai dashboard staf — dialihkan ke portal pasien.
+        if ($role === 'pasien') {
+            return redirect()->route('pasien.home');
+        }
+
         $data = ['role' => $role];
 
-        if (in_array($role, ['admin', 'petugas', 'dokter'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'petugas', 'perawat', 'dokter'], true)) {
             $data['patients'] = Patient::count();
             $data['doctors'] = Doctor::count();
             $data['schedules'] = Schedule::with('doctor:id,name')
@@ -36,21 +44,28 @@ class DashboardController extends Controller
                 ]);
         }
 
-        if (in_array($role, ['admin', 'petugas'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'petugas', 'perawat'], true)) {
             $data['medicines'] = [
                 'total' => Medicine::count(),
                 'low_stock' => Medicine::whereColumn('stock', '<=', 'min_stock')->count(),
             ];
         }
 
-        if (in_array($role, ['admin', 'keuangan'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'keuangan'], true)) {
             $data['balance'] = (float) Finance::selectRaw(
                 "COALESCE(SUM(CASE WHEN type = 'Pemasukan' THEN amount ELSE -amount END), 0) AS balance"
             )->value('balance');
         }
 
-        if ($role === 'admin') {
+        if (in_array($role, User::FULL_ACCESS, true)) {
             $data['employees'] = Employee::count();
+        }
+
+        if (in_array($role, ['admin', 'kepala', 'petugas', 'perawat'], true)) {
+            $data['appointments'] = [
+                'today' => Appointment::whereDate('visit_date', now()->toDateString())->count(),
+                'waiting' => Appointment::where('status', 'Menunggu')->count(),
+            ];
         }
 
         $data['survey'] = [
@@ -79,11 +94,11 @@ class DashboardController extends Controller
             if ($module !== null) {
                 $def = ModuleRegistry::find($module);
                 if ($module === 'surveys') {
-                    $link = in_array($role, ['admin', 'petugas'], true) ? route('surveys.index') : null;
+                    $link = in_array($role, ['admin', 'kepala', 'petugas', 'perawat'], true) ? route('surveys.index') : null;
                 } elseif ($def !== null && in_array($role, $def['readRoles'], true)) {
                     $link = url('/modul/'.$module);
                 } elseif ($module === 'finances') {
-                    $link = in_array($role, ['admin', 'keuangan'], true) ? url('/modul/finances') : null;
+                    $link = in_array($role, ['admin', 'kepala', 'keuangan'], true) ? url('/modul/finances') : null;
                 }
             }
             $tiles[] = [
@@ -110,6 +125,9 @@ class DashboardController extends Controller
         if (isset($data['balance'])) {
             $push($i++, 'Saldo Keuangan', $data['balance'], 'Akumulasi transaksi', 'currency', 'finances');
         }
+        if (isset($data['appointments'])) {
+            $push($i++, 'Berobat Hari Ini', $data['appointments']['today'], $data['appointments']['waiting'].' menunggu konfirmasi', 'number', 'appointments');
+        }
         if (isset($data['survey'])) {
             $avg = round($data['survey']['average'], 2);
             $push($i++, 'Kepuasan Masyarakat', $avg, $data['survey']['total'].' penilaian masuk', 'rating', 'surveys');
@@ -124,7 +142,7 @@ class DashboardController extends Controller
         $out = [];
         $expr = fn (string $col) => $this->monthExpr($col);
 
-        if (in_array($role, ['admin', 'petugas', 'dokter'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'petugas', 'perawat', 'dokter'], true)) {
             $rows = Patient::where('created_at', '>=', now()->subMonths(6)->startOfMonth())
                 ->selectRaw("{$expr('created_at')} AS ym, COUNT(*) AS total")
                 ->groupBy('ym')->orderBy('ym')->get()->keyBy('ym');
@@ -132,7 +150,7 @@ class DashboardController extends Controller
             $out['patients'] = $this->fillMonths($rows, fn ($r) => (int) $r->total, 'Pasien Baru');
         }
 
-        if (in_array($role, ['admin', 'keuangan'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'keuangan'], true)) {
             $in = Finance::where('type', 'Pemasukan')->where('transaction_date', '>=', now()->subMonths(6)->startOfMonth()->toDateString())
                 ->selectRaw("{$expr('transaction_date')} AS ym, SUM(amount) AS total")
                 ->groupBy('ym')->orderBy('ym')->get()->keyBy('ym');
@@ -188,7 +206,7 @@ class DashboardController extends Controller
     /** Data venn diagram (2 himpunan beririsan) sesuai peran. */
     private function venn(string $role): array
     {
-        if (in_array($role, ['admin', 'petugas'], true)) {
+        if (in_array($role, ['admin', 'kepala', 'petugas', 'perawat'], true)) {
             $total = Medicine::count();
             $a = Medicine::whereColumn('stock', '>', 'min_stock')->count(); // stok aman
             $b = Medicine::where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>', now()))->count(); // belum kedaluwarsa
@@ -203,7 +221,7 @@ class DashboardController extends Controller
             ];
         }
 
-        if (in_array($role, ['admin', 'keuangan'], true) && $role === 'keuangan') {
+        if (in_array($role, ['admin', 'kepala', 'keuangan'], true) && $role === 'keuangan') {
             return $this->vennSurvei();
         }
 
